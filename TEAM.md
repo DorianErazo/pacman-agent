@@ -1,19 +1,13 @@
 # Team Information
 
-**Course:** _[fill your course code and name]_
+**Course:** _[ARTIFICIAL INTELLIGENCE 2023 UPF]_
 
-**Semester:** Semester 2, 2020
+**Semester:** FIRST TRIMESTER, 2023
 
-**Instructor:** _[name of your instructor]_
+**Instructor:** _[SERGIO CALO OLIVEIRA]_
 
-**Team name:** _[replace this with team name in plan text]_
+**Team name:** _[IsaacPacmanov]_
 
 **Team members:**
 
-* Student 1's Student number - Full Name - Student email - Student Github id
-* Student 2's Student number - Full Name - Student email - Student Github id
-* Student 3's Student number - Full Name - Student email - Student Github id
-
-Replace the lines above with the correct details of members. Delete or add lines as needed.
-
-Student numbers should just be the **numbers**.
+* U162359 - Dorian Erazo Orozco - dorianemmanuel.erazo01@estudiant.upf.edu - DorianErazo
