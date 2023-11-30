@@ -21,11 +21,11 @@
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 
 import random
-import contest.util as util
+import util as util
 
-from contest.captureAgents import CaptureAgent
-from contest.game import Directions
-from contest.util import nearestPoint
+from captureAgents import CaptureAgent
+from game import Directions
+from util import nearestPoint
 
 
 #################
@@ -73,7 +73,7 @@ class ReflexCaptureAgent(CaptureAgent):
         Picks among the actions with the highest Q(s,a).
         """
         actions = game_state.get_legal_actions(self.index)
-aaaaaaaaaaaaaa
+
         # You can profile your evaluation time by uncommenting these lines
         # start = time.time()
         values = [self.evaluate(game_state, a) for a in actions]
@@ -84,7 +84,15 @@ aaaaaaaaaaaaaa
 
         food_left = len(self.get_food(game_state).as_list())
 
-        if food_left <= 2:
+        #añadire nuevas condiciones para decidir si el agente debe de moverse hacia la base o continuar, esto
+        #se basara en la cantidad de domida que quede y el puntuaje. 
+
+        #if food_left <= 2:
+
+        our_food_left = len(self.get_food_you_are_defending(game_state).as_list())
+        score = self.get_score(game_state)
+
+        if food_left < our_food_left and score <= 0:
             best_dist = 9999
             best_action = None
             for action in actions:
@@ -143,19 +151,80 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
   """
 
     def get_features(self, game_state, action):
+
+        #Datos relevante del estado actual
         features = util.Counter()
         successor = self.get_successor(game_state, action)
         food_list = self.get_food(successor).as_list()
         features['successor_score'] = -len(food_list)  # self.getScore(successor)
 
-        # Compute distance to the nearest food
+        food_left = len(self.get_food(game_state).as_list())
+        our_food_left = len(self.get_food_you_are_defending(game_state).as_list())
+        score = self.get_score(game_state)
+        enemies = [successor.get_agent_state(i) for i in self.get_opponents(successor)]
+        invaders = [a for a in enemies if a.is_pacman and a.get_position() is not None]
+        no_invaders = [a for a in enemies if not a.is_pacman and a.get_position() is not None]
+        my_state = successor.get_agent_state(self.index)
+        my_pos = my_state.get_position()
 
-        if len(food_list) > 0:  # This should always be True,  but better safe than sorry
-            my_pos = successor.get_agent_state(self.index).get_position()
-            min_distance = min([self.get_maze_distance(my_pos, food) for food in food_list])
-            features['distance_to_food'] = min_distance
+        if len(invaders) > 0 or score > 0 or our_food_left > food_left:
+            #características para el modo defensa/ofensa
+            features['on_defense'] = 1 if my_state.is_pacman else 0
+
+            
+            if action == Directions.STOP:
+                features['stop'] = 1
+
+             #calculamos la distancia entre miembros del equipo
+            team_positions = [game_state.get_agent_state(i).get_position() for i in self.get_team(game_state)]
+            dist_between_members = float('inf')
+
+            if len(team_positions) > 1:
+                dist_between_members = min(self.get_maze_distance(*positions) for positions in combinations(team_positions, 2))
+
+            features['dist_members'] = max(0, dist_between_members - 7) if score > 0 else 0
+
+             # Calculamos la distancia a los enemigos no invasores
+            no_invader_dists = [self.get_maze_distance(my_pos, a.get_position()) for a in no_invaders]
+            features['no_invader_distance'] = min(no_invader_dists) if no_invaders else 0
+
+            # Número de invasores y su distancia más cercana
+            features['num_invaders'] = len(invaders)
+
+            if invaders:
+                invader_dists = [self.get_maze_distance(my_pos, a.get_position()) for a in invaders]
+                features['invader_distance'] = min(invader_dists)
+            else:
+                # Distancia al inicio si no hay invasores
+                features['avoid_start'] = self.get_maze_distance(my_pos, self.start)
+
+            # Detectamos si la acción es detenerse o dar la vuelta
+            if action == Directions.STOP:
+                features['stop'] = 1
+            rev = Directions.REVERSE[game_state.get_agent_state(self.index).configuration.direction]
+            if action == rev:
+                features['reverse'] = 1
+        else:
+            # Características para el modo ataque
+            food_list = self.get_food(successor).as_list()
+            features['successor_score'] = -len(food_list)
+
+            # Calculamos la distancia a los enemigos no invasores
+            no_inv_dists = [self.get_maze_distance(my_pos, a.get_position()) for a in no_invaders]
+            features['no_invader_distance'] = 0 if not no_invaders else 1000 - min(no_inv_dists)
+
+            # Detectamos si somos un agente de ataque
+            features['attack'] = 1 if not my_state.is_pacman else 0
+
+            # Calculamos la distancia al alimento más cercano
+            if food_list:
+                features['distance_to_food'] = min(self.get_maze_distance(my_pos, food) for food in food_list)
+
+            # Detectamos si hemos anotado o perdido puntos
+            features['scores'] = 1 if score > 0 else -1
+
         return features
-
+    
     def get_weights(self, game_state, action):
         return {'successor_score': 100, 'distance_to_food': -1}
 
