@@ -256,43 +256,62 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         features = util.Counter()
         successor = self.get_successor(game_state, action)
 
-        #detectar el modoestamos en modo defensa (1) u ofensa (0)
-        features['on_defense'] = 1 if successor.get_agent_state(self.index).is_pacman else 0
+        #obtenemos el estado del agente actual después de tomar la acción
+        my_state = successor.get_agent_state(self.index)
+        my_pos = my_state.get_position()
+
+        # Computes whether we're on defense (1) or offense (0)
+        features['on_defense'] = 1
+        if my_state.is_pacman: 
+            features['on_defense'] = 0
+        
+        #posición de los miembros del equipo
+        team = self.get_team(game_state)
+        agent_1 = game_state.get_agent_state(team[0])
+        pos_ag_1 = agent_1.get_position()
+        agent_2 = game_state.get_agent_state(team[1])
+        pos_ag_2 = agent_2.get_position()
 
         #distancia entre los miembros del equipo
-        team_positions = [game_state.get_agent_state(i).get_position() for i in self.get_team(game_state)]
-        dist_between_members = float('inf')
+        dist_between_members = self.get_maze_distance(pos_ag_1, pos_ag_2)
+        
+        #si el equipo ha anotado puntos, ajusta la característica de distancia entre miembros
+        score = self.get_score(game_state)
+        features['dist_members'] = 0
+        if score > 0:
+            dist_m = 7
+            if dist_between_members < dist_m:
+                features['dist_members'] = dist_between_members-dist_m
+            else:
+                features['dist_members'] = 0
 
-        if len(team_positions) > 1:
-            dist_between_members = min(self.get_maze_distance(*positions) for positions in combinations(team_positions, 2))
-
-        #ajustamos la distancia entre miembros solo si hemos anotado puntos
-        features['dist_members'] = max(0, dist_between_members - 7) if features['on_defense'] == 0 else 0
-
-        #istancia a los invasores
+        #la información de los enemigos en el sucesor 8distancia)
         enemies = [successor.get_agent_state(i) for i in self.get_opponents(successor)]
+        #filtra los enemigos que son Pac-Man (invasores)
         invaders = [a for a in enemies if a.is_pacman and a.get_position() is not None]
+        #numero de invasores y su distancia más cercana
+        features['num_invaders'] = len(invaders)
 
-        #miramos si hay enemigos o invasores
         if len(invaders) > 0:
-            features['num_invaders'] = len(invaders)
-            features['invader_distance'] = min(self.get_maze_distance(successor.get_agent_state(self.index).get_position(), a.get_position()) for a in invaders)
+            dists = [self.get_maze_distance(my_pos, a.get_position()) for a in invaders]
+            features['invader_distance'] = min(dists)
         else:
-            #si no hay invasores, calculamos la distancia al inicio
-            features['avoid_start'] = self.get_maze_distance(successor.get_agent_state(self.index).get_position(), self.start)
+            dist_start = self.get_maze_distance(my_pos, self.start)
+            features['avoid_start'] = dist_start
 
-        #distancia a los no invasores
+        #calcula la distancia a los enemigos que no son Pac-Man (no invasores)
         no_invaders = [a for a in enemies if not a.is_pacman and a.get_position() is not None]
-        features['no_invader_distance'] = min(self.get_maze_distance(successor.get_agent_state(self.index).get_position(), a.get_position()) for a in no_invaders) if no_invaders else 0
+        no_inv_dists = [self.get_maze_distance(my_pos, a.get_position()) for a in no_invaders]
+        
+        if len(no_invaders) == 0:
+            features['no_invader_distance'] = 0
+        else:
+            features['no_invader_distance'] = min(no_inv_dists)
 
-        #la acción es detenerse
-        if action == Directions.STOP:
-            features['stop'] = 1
-
-        #la acción es dar la vuelta
+        #estimamos si la acción es detenerse o dar la vuelta
+        if action == Directions.STOP: features['stop'] = 1
         rev = Directions.REVERSE[game_state.get_agent_state(self.index).configuration.direction]
-        if action == rev:
-            features['reverse'] = 1
+        if action == rev: features['reverse'] = 1
 
         return features
 
@@ -301,6 +320,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         successor = self.get_successor(game_state, action)
         enemies = [successor.get_agent_state(i) for i in self.get_opponents(successor)]
         invaders = [a for a in enemies if a.is_pacman and a.get_position() is not None]
+        
         if len(invaders) > 0:
             return {'num_invaders': -1000000, 'invader_distance': -5000}
         else:
